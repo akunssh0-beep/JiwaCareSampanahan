@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Petugas MMYS V.1 - Input Cepat</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+
+    <style>
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background-color: #f8fafc; }
+        .btn-radio:checked + .lbl-radio { background-color: #3b82f6; color: white; border-color: #3b82f6; }
+        .sync-pending { border-left: 4px solid #f59e0b; }
+        .sync-success { border-left: 4px solid #10b981; }
+        @keyframes pulse-slow { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+        .animate-pulse-slow { animation: pulse-slow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+    </style>
+</head>
+<body class="min-h-screen pb-20">
+
+    <div id="login-overlay" class="fixed inset-0 z-[100] bg-slate-900 flex items-center justify-center p-4 hidden">
+        <div class="bg-white rounded-3xl p-8 w-full max-w-md shadow-2xl">
+            <h2 class="text-2xl font-bold text-slate-800 mb-2 text-center">Login Petugas</h2>
+            <p class="text-slate-500 text-sm text-center mb-6">Masukkan nama Anda untuk mulai bekerja</p>
+            <input type="text" id="login-nama" placeholder="Nama Lengkap Petugas..." class="w-full p-4 rounded-2xl bg-slate-100 border-none focus:ring-2 focus:ring-blue-500 mb-4 outline-none font-semibold">
+            <button onclick="handleLogin()" class="w-full bg-blue-600 text-white font-bold py-4 rounded-2xl hover:bg-blue-700 transition shadow-lg">Masuk Sistem</button>
+        </div>
+    </div>
+
+    <header class="bg-white border-b sticky top-0 z-40 px-4 py-3 flex justify-between items-center">
+        <div>
+            <h1 class="font-bold text-slate-800">MMYS <span class="text-blue-600 text-xs">PETUGAS</span></h1>
+            <p id="petugas-info" class="text-[10px] font-bold text-slate-400 uppercase tracking-tighter"></p>
+        </div>
+        <div class="flex items-center gap-3">
+            <div id="net-badge" class="flex items-center gap-1.5 px-2 py-1 rounded-full bg-slate-100 text-[10px] font-extrabold transition-all">
+                <span id="net-dot" class="w-2 h-2 rounded-full bg-emerald-500"></span>
+                <span id="net-txt">ONLINE</span>
+            </div>
+            <button onclick="handleLogout()" class="text-rose-500 font-bold text-xs uppercase tracking-widest">Keluar</button>
+        </div>
+    </header>
+
+    <main class="max-w-2xl mx-auto p-4 space-y-6">
+        
+        <section class="bg-white rounded-[32px] p-6 shadow-sm border">
+            <h2 class="text-lg font-bold text-slate-800 mb-6 flex items-center gap-2">
+                 Input Data Baru
+            </h2>
+            
+            <form id="form-cepat" class="space-y-6">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="text-[10px] font-bold text-slate-400 uppercase ml-2">Nama Peserta</label>
+                        <input type="text" id="nama" class="w-full p-3 rounded-xl bg-slate-50 border-none focus:ring-2 focus:ring-blue-500 outline-none" placeholder="Hanya huruf...">
+                    </div>
+                    <div>
+                        <label class="text-[10px] font-bold text-slate-400 uppercase ml-2">Usia (7-18)</label>
+                        <input type="number" id="usia" class="w-full p-3 rounded-xl bg-slate-50 border-none focus:ring-2 focus:ring-blue-500 outline-none" placeholder="Contoh: 14">
+                    </div>
+                </div>
+
+                <div class="space-y-4">
+                    <label class="text-[10px] font-bold text-slate-400 uppercase ml-2">Instrumen Skrining (6 Soal)</label>
+                    <div id="soal-container" class="space-y-3">
+                        </div>
+                </div>
+
+                <button type="button" onclick="submitCepat()" id="btn-submit" class="w-full bg-slate-800 text-white font-bold py-4 rounded-2xl hover:bg-slate-900 transition active:scale-95 shadow-xl">
+                    Simpan & Lanjut Pasien Berikutnya
+                </button>
+            </form>
+        </section>
+
+        <div class="flex justify-between items-center px-2">
+            <h3 class="font-bold text-slate-800">Riwayat Terakhir</h3>
+            <div class="flex gap-2">
+                <button onclick="syncData()" class="text-[10px] bg-blue-100 text-blue-700 px-3 py-1 rounded-lg font-bold uppercase hover:bg-blue-200">Sync Manual</button>
+                <button onclick="hapusLokal()" class="text-[10px] bg-rose-100 text-rose-700 px-3 py-1 rounded-lg font-bold uppercase hover:bg-rose-200">Hapus Lokal</button>
+            </div>
+        </div>
+
+        <div id="history-list" class="space-y-3">
+            </div>
+    </main>
+
+    <script>
+        const SHEETS_URL = 'https://script.google.com/macros/s/AKfycbzPEFjixguW2Z4HAwSeIG6LkGGZ6cEf1lJjyUE6p3V4Gc-0jjZUG5vP7kq2ZG3PLPXl/exec';
+        let currentUser = localStorage.getItem('mmys_petugas');
+
+        // Questions mapping (V1 Shared)
+        const qTexts = [
+            "Khawatir/tegang berlebihan", "Berpikir berlebihan/sulit kontrol", "Sulit tidur karena pikiran",
+            "Sedih/hampa hampir setiap hari", "Kehilangan minat hobi/teman", "Sangat lelah/tidak berenergi"
+        ];
+
+        // 1. Initial Logic
+        window.onload = () => {
+            if(!currentUser) {
+                document.getElementById('login-overlay').classList.remove('hidden');
+            } else {
+                setupUI();
+                renderSoal();
+                renderHistory();
+                updateNetStatus();
+            }
+        };
+
+        function setupUI() {
+            document.getElementById('petugas-info').innerText = `Petugas: ${currentUser}`;
+        }
+
+        function renderSoal() {
+            const container = document.getElementById('soal-container');
+            container.innerHTML = qTexts.map((q, i) => `
+                <div class="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-100">
+                    <span class="text-xs font-semibold text-slate-700 flex-1 pr-4">${i+1}. ${q}</span>
+                    <div class="flex gap-1">
+                        <label class="cursor-pointer">
+                            <input type="radio" name="q${i}" value="1" class="hidden btn-radio">
+                            <div class="lbl-radio px-3 py-1.5 border rounded-lg text-[10px] font-bold uppercase">Ya</div>
+                        </label>
+                        <label class="cursor-pointer">
+                            <input type="radio" name="q${i}" value="0" class="hidden btn-radio">
+                            <div class="lbl-radio px-3 py-1.5 border rounded-lg text-[10px] font-bold uppercase">Tdk</div>
+                        </label>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // 2. Auth Logic
+        function handleLogin() {
+            const nama = document.getElementById('login-nama').value.trim();
+            if(nama.length < 3) return Swal.fire('Error', 'Nama petugas tidak valid', 'error');
+            localStorage.setItem('mmys_petugas', nama);
+            location.reload();
+        }
+
+        function handleLogout() {
+            localStorage.removeItem('mmys_petugas');
+            location.reload();
+        }
+
+        // 3. Sync Logic
+        window.addEventListener('online', updateNetStatus);
+        window.addEventListener('offline', updateNetStatus);
+
+        function updateNetStatus() {
+            const isOnline = navigator.onLine;
+            const dot = document.getElementById('net-dot');
+            const txt = document.getElementById('net-txt');
+            const badge = document.getElementById('net-badge');
+            
+            if(isOnline) {
+                dot.className = "w-2 h-2 rounded-full bg-emerald-500 animate-pulse";
+                txt.innerText = "ONLINE";
+                badge.className = "flex items-center gap-1.5 px-2 py-1 rounded-full bg-emerald-50 text-emerald-700 text-[10px] font-extrabold";
+                syncData();
+            } else {
+                dot.className = "w-2 h-2 rounded-full bg-rose-500";
+                txt.innerText = "OFFLINE";
+                badge.className = "flex items-center gap-1.5 px-2 py-1 rounded-full bg-rose-50 text-rose-700 text-[10px] font-extrabold";
+            }
+        }
+
+        // 4. Processing
+        function submitCepat() {
+            const nama = document.getElementById('nama').value.replace(/[^a-zA-Z\s]/g, '').trim();
+            const usia = parseInt(document.getElementById('usia').value);
+            const radios = document.querySelectorAll('input[type="radio"]:checked');
+
+            if(!nama || isNaN(usia) || radios.length < 6) {
+                return Swal.fire('Lengkapi Data', 'Semua soal dan identitas wajib diisi', 'warning');
+            }
+
+            const sA = parseInt(radios[0].value) + parseInt(radios[1].value) + parseInt(radios[2].value);
+            const sB = parseInt(radios[3].value) + parseInt(radios[4].value) + parseInt(radios[5].value);
+
+            const record = {
+                id: `MMYS-${Date.now()}-${nama.substring(0,3).toUpperCase()}`,
+                nama, usia, 
+                scoreA: sA, scoreB: sB,
+                petugas: currentUser,
+                tanggal: new Date().toLocaleDateString('id-ID'),
+                status: 'pending'
+            };
+
+            const history = JSON.parse(localStorage.getItem('mmys_petugas_data') || '[]');
+            history.unshift(record);
+            localStorage.setItem('mmys_petugas_data', JSON.stringify(history.slice(0, 100)));
+
+            Swal.fire({ 
+                title: 'Tersimpan!', 
+                icon: 'success', 
+                timer: 800, 
+                showConfirmButton: false,
+                toast: true,
+                position: 'top-end'
+            });
+
+            resetForm();
+            renderHistory();
+            syncData();
+        }
+
+        function resetForm() {
+            document.getElementById('form-cepat').reset();
+            window.scrollTo(0,0);
+        }
+
+        async function syncData() {
+            if(!navigator.onLine || SHEETS_URL === 'URL_WEB_APP_GOOGLE_SCRIPT_ANDA') return;
+            
+            let history = JSON.parse(localStorage.getItem('mmys_petugas_data') || '[]');
+            let pending = history.filter(h => h.status === 'pending');
+
+            for (let item of pending) {
+                try {
+                    await fetch(SHEETS_URL, { method: 'POST', mode: 'no-cors', body: JSON.stringify(item) });
+                    item.status = 'synced';
+                } catch (e) { console.log("Sync item failed"); }
+            }
+
+            localStorage.setItem('mmys_petugas_data', JSON.stringify(history));
+            renderHistory();
+        }
+
+        function renderHistory() {
+            const container = document.getElementById('history-list');
+            const history = JSON.parse(localStorage.getItem('mmys_petugas_data') || '[]');
+            
+            if(!history.length) {
+                container.innerHTML = `<div class="text-center py-10 text-slate-400 text-xs italic">Belum ada input.</div>`;
+                return;
+            }
+
+            container.innerHTML = history.slice(0, 20).map(h => `
+                <div class="bg-white p-4 rounded-2xl border shadow-sm flex justify-between items-center ${h.status === 'pending' ? 'sync-pending' : 'sync-success'}">
+                    <div class="text-left">
+                        <h4 class="font-bold text-slate-800 text-sm capitalize">${h.nama} <span class="text-[9px] text-slate-400 ml-1">(${h.usia}th)</span></h4>
+                        <div class="flex gap-2 mt-1">
+                            <span class="text-[9px] font-bold px-1.5 py-0.5 rounded bg-slate-100">A:${h.scoreA} D:${h.scoreB}</span>
+                            <span class="text-[9px] font-bold uppercase ${h.status === 'pending' ? 'text-amber-500' : 'text-emerald-500'}">
+                                ${h.status === 'pending' ? ' Pending' : ' Terkirim'}
+                            </span>
+                        </div>
+                    </div>
+                    <div class="text-right text-[8px] font-bold text-slate-300 uppercase">${h.tanggal}</div>
+                </div>
+            `).join('');
+        }
+
+        function hapusLokal() {
+            Swal.fire({
+                title: 'Hapus Data Lokal?',
+                text: "Pastikan data sudah tersinkron ke cloud!",
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonText: 'Ya, Hapus'
+            }).then(res => {
+                if(res.isConfirmed) {
+                    localStorage.removeItem('mmys_petugas_data');
+                    renderHistory();
+                }
+            });
+        }
+
+        setInterval(syncData, 15000);
+    </script>
+</body>
+</html>

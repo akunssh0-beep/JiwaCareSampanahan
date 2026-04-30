@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard Admin - MMYS V.1 Professional</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;600;700&display=swap" rel="stylesheet">
+
+    <style>
+        :root { --bg-gradient: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%); --glass: rgba(255, 255, 255, 0.7); }
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background: var(--bg-gradient); color: #1e293b; min-height: 100vh; }
+        .glass { background: var(--glass); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.5); box-shadow: 0 4px 20px rgba(0,0,0,0.03); }
+        .card-stat { transition: transform 0.2s; }
+        .card-stat:hover { transform: translateY(-5px); }
+        @media (max-width: 640px) { .hide-mobile { display: none; } }
+    </style>
+</head>
+<body class="p-4 md:p-8">
+
+    <header class="max-w-7xl mx-auto mb-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div>
+            <h1 class="text-2xl font-extrabold tracking-tight text-slate-800">📊 Monitoring MMYS V.1</h1>
+            <p class="text-slate-500 text-sm italic">Puskesmas Sampanahan Digital Service</p>
+        </div>
+        <div class="flex gap-2 w-full md:w-auto">
+            <button onclick="loadData()" class="flex-1 md:flex-none bg-blue-600 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-lg hover:bg-blue-700 transition">🔄 Refresh</button>
+            <button onclick="exportToExcel()" class="flex-1 md:flex-none bg-emerald-600 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-lg hover:bg-emerald-700 transition">📥 Export Excel</button>
+        </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto space-y-6">
+        
+        <div class="glass rounded-2xl p-4 flex flex-wrap gap-4 items-end">
+            <div class="flex-1 min-w-[150px]">
+                <label class="text-[10px] font-bold text-slate-400 uppercase">Tgl Awal</label>
+                <input type="date" id="filterStart" class="w-full bg-transparent border-b-2 border-slate-200 outline-none p-1 text-sm">
+            </div>
+            <div class="flex-1 min-w-[150px]">
+                <label class="text-[10px] font-bold text-slate-400 uppercase">Tgl Akhir</label>
+                <input type="date" id="filterEnd" class="w-full bg-transparent border-b-2 border-slate-200 outline-none p-1 text-sm">
+            </div>
+            <button onclick="applyFilter()" class="bg-slate-800 text-white px-6 py-2 rounded-lg text-xs font-bold hover:bg-slate-900 transition">Terapkan Filter</button>
+        </div>
+
+        <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
+            <div class="glass p-4 rounded-2xl card-stat">
+                <p class="text-[10px] font-bold text-slate-400 uppercase">Total Skrining</p>
+                <h3 id="statTotal" class="text-2xl font-bold text-blue-600">0</h3>
+            </div>
+            <div class="glass p-4 rounded-2xl card-stat border-l-4 border-rose-500">
+                <p class="text-[10px] font-bold text-slate-400 uppercase">Anx. Berat</p>
+                <h3 id="statAnxBerat" class="text-2xl font-bold text-rose-600">0</h3>
+            </div>
+            <div class="glass p-4 rounded-2xl card-stat border-l-4 border-amber-500">
+                <p class="text-[10px] font-bold text-slate-400 uppercase">Anx. Ringan</p>
+                <h3 id="statAnxRingan" class="text-2xl font-bold text-amber-600">0</h3>
+            </div>
+            <div class="glass p-4 rounded-2xl card-stat border-l-4 border-rose-500">
+                <p class="text-[10px] font-bold text-slate-400 uppercase">Depr. Berat</p>
+                <h3 id="statDepBerat" class="text-2xl font-bold text-rose-600">0</h3>
+            </div>
+            <div class="glass p-4 rounded-2xl card-stat border-l-4 border-amber-500">
+                <p class="text-[10px] font-bold text-slate-400 uppercase">Depr. Ringan</p>
+                <h3 id="statDepRingan" class="text-2xl font-bold text-amber-600">0</h3>
+            </div>
+        </div>
+
+        <div class="grid md:grid-cols-2 gap-6">
+            <div class="glass p-6 rounded-[32px]">
+                <h4 class="text-xs font-bold text-slate-400 uppercase mb-4">Perbandingan Gejala</h4>
+                <canvas id="barChart" height="200"></canvas>
+            </div>
+            <div class="glass p-6 rounded-[32px]">
+                <h4 class="text-xs font-bold text-slate-400 uppercase mb-4">Tren Skrining (7 Hari Terakhir)</h4>
+                <canvas id="lineChart" height="200"></canvas>
+            </div>
+        </div>
+
+        <div class="glass rounded-[32px] overflow-hidden">
+            <div class="p-6 border-b border-white/50 flex justify-between items-center">
+                <h4 class="text-xs font-bold text-slate-400 uppercase">Daftar Hasil Skrining</h4>
+                <span id="loadingText" class="text-[10px] font-bold text-blue-500 animate-pulse hidden">MEMUAT DATA...</span>
+            </div>
+            <div class="overflow-x-auto max-h-[400px]">
+                <table class="w-full text-left text-sm">
+                    <thead class="bg-slate-50/50 sticky top-0 backdrop-blur-md">
+                        <tr>
+                            <th class="p-4 font-bold opacity-60">Nama</th>
+                            <th class="p-4 font-bold opacity-60">Usia</th>
+                            <th class="p-4 font-bold opacity-60">Tanggal</th>
+                            <th class="p-4 font-bold opacity-60 text-center">Skor A</th>
+                            <th class="p-4 font-bold opacity-60 text-center">Skor B</th>
+                            <th class="p-4 font-bold opacity-60">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tableBody">
+                        </tbody>
+                </table>
+            </div>
+            <div id="emptyState" class="p-10 text-center hidden">
+                <p class="text-slate-400 text-sm">Belum ada data tersedia.</p>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        const API_URL = 'URL_WEB_APP_GOOGLE_SCRIPT_ANDA'; // Sama dengan SHEETS_URL di index.html
+        let fullData = [], barChart = null, lineChart = null;
+
+        document.addEventListener('DOMContentLoaded', () => {
+            initCharts();
+            loadData();
+            setInterval(loadData, 30000); // Auto refresh tiap 30 detik
+        });
+
+        async function loadData() {
+            if(API_URL === 'https://script.google.com/macros/s/AKfycbzPEFjixguW2Z4HAwSeIG6LkGGZ6cEf1lJjyUE6p3V4Gc-0jjZUG5vP7kq2ZG3PLPXl/exec') {
+                return console.warn("API URL belum diatur.");
+            }
+            
+            document.getElementById('loadingText').classList.remove('hidden');
+            try {
+                const response = await fetch(`${API_URL}?action=get`);
+                fullData = await response.json();
+                renderDashboard(fullData);
+            } catch (error) {
+                console.error("Gagal memuat data:", error);
+            } finally {
+                document.getElementById('loadingText').classList.add('hidden');
+            }
+        }
+
+        function renderDashboard(data) {
+            const stats = { total: data.length, anxB: 0, anxR: 0, depB: 0, depR: 0 };
+            const tableBody = document.getElementById('tableBody');
+            tableBody.innerHTML = "";
+
+            data.slice(0, 50).forEach(item => {
+                // Akurasi Logika Skoring Professional
+                const scoreA = parseInt(item.scoreA);
+                const scoreB = parseInt(item.scoreB);
+
+                if(scoreA >= 2) stats.anxB++; else if(scoreA === 1) stats.anxR++;
+                if(scoreB >= 2) stats.depB++; else if(scoreB === 1) stats.depR++;
+
+                const statusClass = (scoreA >= 2 || scoreB >= 2) ? 'bg-rose-100 text-rose-700' : 
+                                    (scoreA === 1 || scoreB === 1) ? 'bg-amber-100 text-amber-700' : 
+                                    'bg-emerald-100 text-emerald-700';
+                const statusLabel = (scoreA >= 2 || scoreB >= 2) ? 'Berat' : 
+                                    (scoreA === 1 || scoreB === 1) ? 'Ringan' : 'Normal';
+
+                tableBody.innerHTML += `
+                    <tr class="border-b border-white/20 hover:bg-white/30 transition">
+                        <td class="p-4 font-bold capitalize">${item.nama}</td>
+                        <td class="p-4 opacity-70">${item.usia} th</td>
+                        <td class="p-4 opacity-70">${item.tanggal}</td>
+                        <td class="p-4 text-center font-mono">${scoreA}</td>
+                        <td class="p-4 text-center font-mono">${scoreB}</td>
+                        <td class="p-4">
+                            <span class="px-3 py-1 rounded-full text-[10px] font-extrabold uppercase ${statusClass}">${statusLabel}</span>
+                        </td>
+                    </tr>
+                `;
+            });
+
+            document.getElementById('statTotal').innerText = stats.total;
+            document.getElementById('statAnxBerat').innerText = stats.anxB;
+            document.getElementById('statAnxRingan').innerText = stats.anxR;
+            document.getElementById('statDepBerat').innerText = stats.depB;
+            document.getElementById('statDepRingan').innerText = stats.depR;
+
+            updateCharts(stats, data);
+            document.getElementById('emptyState').classList.toggle('hidden', data.length > 0);
+        }
+
+        function initCharts() {
+            const ctxBar = document.getElementById('barChart').getContext('2d');
+            barChart = new Chart(ctxBar, {
+                type: 'bar',
+                data: {
+                    labels: ['Ansietas Ringan', 'Ansietas Berat', 'Depresi Ringan', 'Depresi Berat'],
+                    datasets: [{
+                        label: 'Jumlah Kasus',
+                        data: [0, 0, 0, 0],
+                        backgroundColor: ['#f59e0b', '#ef4444', '#f59e0b', '#ef4444'],
+                        borderRadius: 10
+                    }]
+                },
+                options: { responsive: true, plugins: { legend: { display: false } } }
+            });
+
+            const ctxLine = document.getElementById('lineChart').getContext('2d');
+            lineChart = new Chart(ctxLine, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'Total Skrining',
+                        data: [],
+                        borderColor: '#3b82f6',
+                        tension: 0.4,
+                        fill: true,
+                        backgroundColor: 'rgba(59, 130, 246, 0.1)'
+                    }]
+                },
+                options: { responsive: true }
+            });
+        }
+
+        function updateCharts(stats, data) {
+            barChart.data.datasets[0].data = [stats.anxR, stats.anxB, stats.depR, stats.depB];
+            barChart.update();
+
+            // Logika Tren 7 Hari Terakhir
+            const dates = [...new Set(data.map(i => i.tanggal))].slice(-7);
+            const counts = dates.map(d => data.filter(i => i.tanggal === d).length);
+            
+            lineChart.data.labels = dates;
+            lineChart.data.datasets[0].data = counts;
+            lineChart.update();
+        }
+
+        function applyFilter() {
+            const start = document.getElementById('filterStart').value;
+            const end = document.getElementById('filterEnd').value;
+            if(!start || !end) return Swal.fire('Filter', 'Pilih rentang tanggal!', 'info');
+
+            const filtered = fullData.filter(item => {
+                const date = new Date(item.tanggal.split('/').reverse().join('-'));
+                return date >= new Date(start) && date <= new Date(end);
+            });
+            renderDashboard(filtered);
+        }
+
+        function exportToExcel() {
+            if(!fullData.length) return Swal.fire('Error', 'Tidak ada data untuk dieksport', 'error');
+            const ws = XLSX.utils.json_to_sheet(fullData);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "Laporan_MMYS");
+            XLSX.writeFile(wb, `Laporan_Puskesmas_Sampanahan_${Date.now()}.xlsx`);
+        }
+    </script>
+</body>
+</html>
