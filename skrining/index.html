@@ -11,8 +11,8 @@
     
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <script src="./internal_assets/xlsx.full.min.js"></script>
+    <script src="./internal_assets/qrcode.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;600;700&display=swap" rel="stylesheet">
 
     <style>
@@ -25,6 +25,7 @@
         .radio-custom:checked + .radio-label { background-color: #3b82f6; color: white; border-color: #3b82f6; transform: scale(1.05); }
         @media print { .no-print { display: none !important; } }
     </style>
+<meta name="theme-color" content="#3b82f6"><link rel="manifest" href="manifest.json"><link rel="apple-touch-icon" href="icon-512.png">
 </head>
 <body class="p-4 md:p-8 flex justify-center items-start">
 
@@ -334,5 +335,6 @@
             window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js'));
         }
     </script>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js');</script>
 </body>
 </html>
